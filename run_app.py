@@ -21,9 +21,9 @@ os.chdir(base_dir)
 # Como pegar o link raw: Vá no arquivo no GitHub, clique em "Raw" e copie a URL da barra de endereços.
 # A URL sempre começa com "https://raw.githubusercontent.com/..."
 # =====================================================================
-URL_APP = "https://raw.githubusercontent.com/SEU_USUARIO_AQUI/NOME_DO_REPO_AQUI/main/app.py"
-URL_FUNCTIONS = "https://raw.githubusercontent.com/SEU_USUARIO_AQUI/NOME_DO_REPO_AQUI/main/functions.py"
-URL_LOGO = "https://raw.githubusercontent.com/SEU_USUARIO_AQUI/NOME_DO_REPO_AQUI/main/logo2.jpg"
+URL_APP = "https://raw.githubusercontent.com/abimaelProgammer/Gerador-de-Cardapios.git/main/app.py"
+URL_FUNCTIONS = "https://raw.githubusercontent.com/abimaelProgammer/Gerador-de-Cardapios.git/main/functions.py"
+URL_LOGO = "https://raw.githubusercontent.com/abimaelProgammer/Gerador-de-Cardapios.git/main/logo2.jpg"
 
 FILES_TO_UPDATE = {
     "app.py": URL_APP,
