@@ -3,6 +3,11 @@ import os
 from pathlib import Path
 from functions import gerar_cardapio
 
+try:
+    import win32com.client
+except ImportError:
+    pass
+
 st.set_page_config(page_title="Gerador de Cardápio", page_icon="📋")
 
 st.title("Gerador de Cardápio 📋")
@@ -81,13 +86,27 @@ if st.session_state.planilha_gerada:
         )
         
     with col2:
-        if st.button("🖨️ Imprimir", type="secondary", use_container_width=True):
-            try:
-                temp_print_path = os.path.abspath("temp_imprimir.xlsx")
-                with open(temp_print_path, "wb") as f:
-                    f.write(st.session_state.planilha_gerada)
-                
-                os.startfile(temp_print_path, "print")
-                st.success("Documento enviado para a impressora padrão do sistema!")
-            except Exception as e:
-                st.error(f"Não foi possível imprimir. Verifique se o Excel está instalado: {e}")
+        if st.button("🖨️ Abrir PDF para Imprimir", type="secondary", use_container_width=True):
+            with st.spinner("Gerando PDF do Cardápio..."):
+                try:
+                    temp_print_path = os.path.abspath("temp_imprimir.xlsx")
+                    temp_pdf_path = os.path.abspath("temp_imprimir.pdf")
+                    
+                    with open(temp_print_path, "wb") as f:
+                        f.write(st.session_state.planilha_gerada)
+                    
+                    if os.path.exists(temp_pdf_path):
+                        os.remove(temp_pdf_path)
+                        
+                    excel = win32com.client.Dispatch("Excel.Application")
+                    excel.Visible = False
+                    wb = excel.Workbooks.Open(temp_print_path)
+                    # 0 é o código para ExportAsFixedFormat tipo PDF
+                    wb.ActiveSheet.ExportAsFixedFormat(0, temp_pdf_path)
+                    wb.Close(False)
+                    excel.Quit()
+                    
+                    os.startfile(temp_pdf_path)
+                    st.success("PDF aberto! Escolha a sua impressora no leitor de PDF.")
+                except Exception as e:
+                    st.error(f"Não foi possível gerar o PDF. Verifique se o Excel está instalado: {e}")
