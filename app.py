@@ -68,9 +68,26 @@ if st.button("Gerar Cardápio", type="primary"):
                     os.remove("Cardapio_Gerado.xlsx")
 
 if st.session_state.planilha_gerada:
-    st.download_button(
-        label="📥 Baixar Cardápio Gerado",
-        data=st.session_state.planilha_gerada,
-        file_name="Cardapio.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.download_button(
+            label="📥 Baixar Cardápio",
+            data=st.session_state.planilha_gerada,
+            file_name="Cardapio.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+        
+    with col2:
+        if st.button("🖨️ Imprimir", type="secondary", use_container_width=True):
+            try:
+                temp_print_path = os.path.abspath("temp_imprimir.xlsx")
+                with open(temp_print_path, "wb") as f:
+                    f.write(st.session_state.planilha_gerada)
+                
+                os.startfile(temp_print_path, "print")
+                st.success("Documento enviado para a impressora padrão do sistema!")
+            except Exception as e:
+                st.error(f"Não foi possível imprimir. Verifique se o Excel está instalado: {e}")

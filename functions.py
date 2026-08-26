@@ -146,6 +146,13 @@ def gerar_cardapio(
     ws["A1"].font = Font(size=18, bold=True, color=verde_escuro)
     ws["A1"].fill = PatternFill("solid", fgColor=bege_creme)
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+
+    ws.merge_cells("F1:I1")
+    ws["F1"] = f"CARDÁPIO {date.today():%d/%m/%Y}"
+    ws["F1"].font = Font(size=18, bold=True, color=verde_escuro)
+    ws["F1"].fill = PatternFill("solid", fgColor=bege_creme)
+    ws["F1"].alignment = Alignment(horizontal="center", vertical="center")
+    
     ws.row_dimensions[1].height = 60
     
     caminho_logo = Path(fonte_produtos).parent / "logo2.jpg"
@@ -155,6 +162,11 @@ def gerar_cardapio(
         img.width = int(img.width * ratio)
         img.height = 70
         ws.add_image(img, "A1")
+        
+        img2 = Image(str(caminho_logo))
+        img2.width = img.width
+        img2.height = img.height
+        ws.add_image(img2, "F1")
 
     cabecalhos = ("IMP", "CÓD", "ITENS", "R$")
     for coluna, texto in enumerate(cabecalhos, 1):
@@ -164,17 +176,33 @@ def gerar_cardapio(
         celula.alignment = Alignment(horizontal="center")
         celula.border = borda_fina
 
+        celula_dir = ws.cell(2, coluna + 5, texto)
+        celula_dir.font = Font(bold=True, color=branco)
+        celula_dir.fill = PatternFill("solid", fgColor=azul)
+        celula_dir.alignment = Alignment(horizontal="center")
+        celula_dir.border = borda_fina
+
     linha_atual = 3
     ativos = pausados = 0
     for categoria, itens in grupos.items():
         ws.cell(linha_atual, 1, "S")
         ws.cell(linha_atual, 3, categoria.upper())
         ws.cell(linha_atual, 3).alignment = Alignment(horizontal="center")
+        
+        ws.cell(linha_atual, 6, "S")
+        ws.cell(linha_atual, 8, categoria.upper())
+        ws.cell(linha_atual, 8).alignment = Alignment(horizontal="center")
+        
         for coluna in range(1, 5):
             celula = ws.cell(linha_atual, coluna)
             celula.fill = PatternFill("solid", fgColor=azul_claro)
             celula.font = Font(bold=True, color=azul)
             celula.border = borda_fina
+            
+            celula_dir = ws.cell(linha_atual, coluna + 5)
+            celula_dir.fill = PatternFill("solid", fgColor=azul_claro)
+            celula_dir.font = Font(bold=True, color=azul)
+            celula_dir.border = borda_fina
             
         tem_ativo = any(_normalizar(produto["status"]) == "ativo" for produto in itens)
         if not tem_ativo and ocultar_pausados:
@@ -190,13 +218,24 @@ def gerar_cardapio(
             ws.cell(linha_atual, 3, produto["nome"])
             ws.cell(linha_atual, 4, produto["preco"])
             ws.cell(linha_atual, 4).number_format = 'R$ #,##0.00'
+            
+            ws.cell(linha_atual, 6, "S" if ativo else "N")
+            ws.cell(linha_atual, 7, produto["codigo"])
+            ws.cell(linha_atual, 7).alignment = Alignment(horizontal="center")
+            ws.cell(linha_atual, 8, produto["nome"])
+            ws.cell(linha_atual, 9, produto["preco"])
+            ws.cell(linha_atual, 9).number_format = 'R$ #,##0.00'
+            
             for coluna in range(1, 5):
                 ws.cell(linha_atual, coluna).border = borda_fina
+                ws.cell(linha_atual, coluna + 5).border = borda_fina
+                
             if not ativo:
                 pausados += 1
                 ws.row_dimensions[linha_atual].hidden = ocultar_pausados
                 for coluna in range(1, 5):
                     ws.cell(linha_atual, coluna).font = Font(color="808080", italic=True)
+                    ws.cell(linha_atual, coluna + 5).font = Font(color="808080", italic=True)
             else:
                 ativos += 1
             linha_atual += 1
@@ -210,6 +249,13 @@ def gerar_cardapio(
             celula.alignment = Alignment(horizontal="center")
             celula.font = Font(bold=True)
             celula.fill = PatternFill("solid", fgColor=cinza)
+            
+            ws.merge_cells(start_row=linha_atual, start_column=6, end_row=linha_atual, end_column=9)
+            celula_dir = ws.cell(linha_atual, 6, texto_rodape)
+            celula_dir.alignment = Alignment(horizontal="center")
+            celula_dir.font = Font(bold=True)
+            celula_dir.fill = PatternFill("solid", fgColor=cinza)
+            
             linha_atual += 1
 
     ws.column_dimensions["A"].width = 8
@@ -217,12 +263,21 @@ def gerar_cardapio(
     ws.column_dimensions["B"].width = 12
     ws.column_dimensions["C"].width = 68
     ws.column_dimensions["D"].width = 15
+    
+    ws.column_dimensions["E"].width = 2
+    
+    ws.column_dimensions["F"].width = 8
+    ws.column_dimensions["F"].hidden = True
+    ws.column_dimensions["G"].width = 12
+    ws.column_dimensions["H"].width = 68
+    ws.column_dimensions["I"].width = 15
+    
     ws.freeze_panes = "A3"
     ws.auto_filter.ref = f"A2:D{linha_atual - 1}"
     ws.sheet_view.showGridLines = False
     ws.print_title_rows = "1:2"
-    ws.print_area = f"A1:D{linha_atual - 1}"
-    ws.page_setup.orientation = "portrait"
+    ws.print_area = f"A1:I{linha_atual - 1}"
+    ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth = 1
     ws.sheet_properties.pageSetUpPr.fitToPage = True
 

@@ -2,8 +2,11 @@ import os
 import sys
 import time
 import requests
+import urllib3
 import webbrowser
 from streamlit.web import cli as stcli
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Garante que o programa "abra sempre no local", ou seja, 
 # force o diretório de trabalho a ser a pasta onde o .exe está rodando.
@@ -21,9 +24,9 @@ os.chdir(base_dir)
 # Como pegar o link raw: Vá no arquivo no GitHub, clique em "Raw" e copie a URL da barra de endereços.
 # A URL sempre começa com "https://raw.githubusercontent.com/..."
 # =====================================================================
-URL_APP = "https://raw.githubusercontent.com/SEU_USUARIO_AQUI/NOME_DO_REPO_AQUI/main/app.py"
-URL_FUNCTIONS = "https://raw.githubusercontent.com/SEU_USUARIO_AQUI/NOME_DO_REPO_AQUI/main/functions.py"
-URL_LOGO = "https://raw.githubusercontent.com/SEU_USUARIO_AQUI/NOME_DO_REPO_AQUI/main/logo2.jpg"
+URL_APP = "https://raw.githubusercontent.com/abimaelProgammer/Gerador-de-Cardapios/main/app.py"
+URL_FUNCTIONS = "https://raw.githubusercontent.com/abimaelProgammer/Gerador-de-Cardapios/main/functions.py"
+URL_LOGO = "https://raw.githubusercontent.com/abimaelProgammer/Gerador-de-Cardapios/main/logo2.jpg"
 
 FILES_TO_UPDATE = {
     "app.py": URL_APP,
@@ -35,8 +38,8 @@ def check_for_updates():
     print("Verificando se ha atualizacoes do sistema na internet...")
     for filename, url in FILES_TO_UPDATE.items():
         try:
-            # Baixa com timeout curto (3 segundos) para não travar muito tempo se a internet estiver desligada/lenta
-            response = requests.get(url, timeout=3)
+            # Baixa com timeout maior (10 segundos) e sem verificar SSL (evita erros em proxy/exe)
+            response = requests.get(url, timeout=10, verify=False)
             
             # Se a resposta for 200 OK e o arquivo não for uma página de erro
             if response.status_code == 200 and "404: Not Found" not in response.text:
@@ -46,7 +49,8 @@ def check_for_updates():
             else:
                 print(f"[-] O link para '{filename}' parece estar errado ou o repo e privado.")
         except Exception as e:
-            print(f"[-] Sem internet (ou timeout). Usando a versao local de '{filename}'.")
+            print(f"[-] Erro ao atualizar '{filename}': {e}")
+            print(f"    Usando a versao local de '{filename}'.")
 
 if __name__ == "__main__":
     print("========================================")
