@@ -2,7 +2,11 @@ import streamlit as st
 import os
 from pathlib import Path
 from functions import gerar_cardapio
-import win32com.client
+
+try:
+    import win32com.client
+except ImportError:
+    win32com = None
 
 st.set_page_config(page_title="Gerador de Cardápio", page_icon="📋")
 
@@ -82,7 +86,13 @@ if st.session_state.planilha_gerada:
         )
         
     with col2:
-        if st.button("🖨️ Abrir PDF para Imprimir", type="secondary", use_container_width=True):
+        pode_gerar_pdf = win32com is not None
+        if st.button(
+            "🖨️ Abrir PDF para Imprimir",
+            type="secondary",
+            use_container_width=True,
+            disabled=not pode_gerar_pdf,
+        ):
             with st.spinner("Gerando PDF do Cardápio..."):
                 try:
                     temp_print_path = os.path.abspath("temp_imprimir.xlsx")
@@ -106,3 +116,9 @@ if st.session_state.planilha_gerada:
                     st.success("PDF aberto! Escolha a sua impressora no leitor de PDF.")
                 except Exception as e:
                     st.error(f"Não foi possível gerar o PDF. Verifique se o Excel está instalado: {e}")
+
+        if not pode_gerar_pdf:
+            st.caption(
+                "Para gerar o PDF, instale o suporte do Windows com: "
+                "`python -m pip install pywin32`. O download em Excel continua disponível."
+            )
