@@ -2,11 +2,7 @@ import streamlit as st
 import os
 from pathlib import Path
 from functions import gerar_cardapio
-
-try:
-    import win32com.client
-except ImportError:
-    pass
+import win32com.client
 
 st.set_page_config(page_title="Gerador de Cardápio", page_icon="📋")
 

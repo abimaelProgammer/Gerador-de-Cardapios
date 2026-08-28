@@ -97,10 +97,29 @@ def _rodapes_do_modelo(modelo_cardapio: str | Path | None) -> list[str]:
         textos = []
         for linha in ws.iter_rows(values_only=True):
             primeiro = linha[0] if linha else None
-            segundo = linha[1] if len(linha) > 1 else None
-            if primeiro in ("S", "N") and isinstance(segundo, str) and not segundo.isdigit():
-                if any(chave in _normalizar(segundo) for chave in ("taxa", "wi-fi", "pix")):
-                    textos.append(segundo)
+            if primeiro is None:
+                continue
+            primeiro_str = str(primeiro).strip()
+            
+            # Rodapés são linhas onde a coluna A contém o texto do aviso diretamente
+            # (não começa com "S" ou "N" que são marcadores de produto/categoria)
+            if primeiro_str in ("S", "N"):
+                continue
+            
+            # Ignora fórmulas do Excel
+            if primeiro_str.startswith("="):
+                continue
+            
+            texto_norm = _normalizar(primeiro_str)
+            
+            # Detecta linhas que contenham palavras-chave de rodapé
+            palavras_chave = (
+                "taxa", "wi-fi", "wifi", "pix", "servico", "gorjeta",
+                "funcionamento", "reserva", "pedido minimo", "senha", "cnpj",
+            )
+            if any(chave in texto_norm for chave in palavras_chave):
+                if len(primeiro_str) > 10 and primeiro_str not in textos:
+                    textos.append(primeiro_str)
         return textos
     finally:
         wb.close()
