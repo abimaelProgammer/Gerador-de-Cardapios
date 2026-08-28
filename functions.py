@@ -96,11 +96,16 @@ def _rodapes_do_modelo(modelo_cardapio: str | Path | None) -> list[str]:
         ws = wb[wb.sheetnames[0]]
         textos = []
         for linha in ws.iter_rows(values_only=True):
-            primeiro = linha[0] if linha else None
-            segundo = linha[1] if len(linha) > 1 else None
-            if primeiro in ("S", "N") and isinstance(segundo, str) and not segundo.isdigit():
-                if any(chave in _normalizar(segundo) for chave in ("taxa", "wi-fi", "pix")):
-                    textos.append(segundo)
+            # Procura texto de rodapé em qualquer coluna da linha
+            # Rodapés são linhas mescladas que contêm avisos como taxa, wi-fi, pix, etc.
+            valores_texto = [str(v).strip() for v in linha if v is not None and str(v).strip()]
+            texto_completo = " ".join(valores_texto)
+            texto_norm = _normalizar(texto_completo)
+            if any(chave in texto_norm for chave in ("taxa", "wi-fi", "wifi", "pix", "servico", "gorjeta", "couvert", "horario", "funcionamento", "reserva", "pedido minimo")):
+                # Pega o texto mais longo da linha (geralmente é o aviso mesclado)
+                melhor = max(valores_texto, key=len)
+                if len(melhor) > 3 and melhor not in textos:
+                    textos.append(melhor)
         return textos
     finally:
         wb.close()
