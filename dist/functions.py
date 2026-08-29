@@ -28,6 +28,15 @@ COLUNAS_OBRIGATORIAS = {
     "status": ("Status Venda", "Status"),
 }
 
+RODAPES_PADRAO = [
+    ("Cobramos 10% como taxa de serviço", "Cobramos 10% como taxa de serviço"),
+    (
+        "Rede WI-FI: Clientes Le Clair    Senha: @Clientes2026",
+        "Rede WI-FI: Clientes Le Clair    Senha: @Clientes2026",
+    ),
+    ("PIX (CNPJ) 64.111.665/0001-55", "PIX (CPF) 428.255.047-34"),
+]
+
 
 def _normalizar(texto: Any) -> str:
     import unicodedata
@@ -92,7 +101,7 @@ def _rodapes_do_modelo(
 ) -> list[tuple[str, str]]:
     """Aproveita os avisos das duas metades do cardápio anterior."""
     if not modelo_cardapio or not Path(modelo_cardapio).exists():
-        return []
+        return list(RODAPES_PADRAO)
     wb = load_workbook(modelo_cardapio, data_only=False, read_only=True)
     try:
         ws = wb[wb.sheetnames[0]]
@@ -130,7 +139,7 @@ def _rodapes_do_modelo(
             rodape = (texto_esquerda, texto_direita)
             if max(map(len, rodape)) > 10 and rodape not in textos:
                 textos.append(rodape)
-        return textos
+        return textos or list(RODAPES_PADRAO)
     finally:
         wb.close()
 
