@@ -87,39 +87,49 @@ def ler_produtos(fonte_produtos: str | Path, aba: str | None = None) -> list[dic
         wb.close()
 
 
-def _rodapes_do_modelo(modelo_cardapio: str | Path | None) -> list[str]:
-    """Aproveita os avisos do cardápio anterior, quando houver."""
+def _rodapes_do_modelo(
+    modelo_cardapio: str | Path | None,
+) -> list[tuple[str, str]]:
+    """Aproveita os avisos das duas metades do cardápio anterior."""
     if not modelo_cardapio or not Path(modelo_cardapio).exists():
         return []
     wb = load_workbook(modelo_cardapio, data_only=False, read_only=True)
     try:
         ws = wb[wb.sheetnames[0]]
-        textos = []
+        textos: list[tuple[str, str]] = []
+        palavras_chave = (
+            "taxa", "wi-fi", "wifi", "pix", "servico", "gorjeta",
+            "funcionamento", "reserva", "pedido minimo", "senha", "cnpj", "cpf",
+            "pagamento", "cartao", "dinheiro",
+        )
+
+        def texto_do_bloco(linha: tuple[Any, ...], inicio: int, fim: int) -> str:
+            for valor in linha[inicio:fim]:
+                if valor is None:
+                    continue
+                texto = str(valor).strip()
+                if texto and not texto.startswith("="):
+                    return texto
+            return ""
+
         for linha in ws.iter_rows(values_only=True):
-            primeiro = linha[0] if linha else None
-            if primeiro is None:
+            # A coluna A guarda o marcador S/N. Os avisos ficam nos blocos
+            # B:D (esquerda) e E:G (direita) do modelo original.
+            texto_esquerda = texto_do_bloco(linha, 1, 4)
+            texto_direita = texto_do_bloco(linha, 4, 7)
+            candidatos = (texto_esquerda, texto_direita)
+
+            if not any(
+                any(chave in _normalizar(texto) for chave in palavras_chave)
+                for texto in candidatos if texto
+            ):
                 continue
-            primeiro_str = str(primeiro).strip()
-            
-            # Rodapés são linhas onde a coluna A contém o texto do aviso diretamente
-            # (não começa com "S" ou "N" que são marcadores de produto/categoria)
-            if primeiro_str in ("S", "N"):
-                continue
-            
-            # Ignora fórmulas do Excel
-            if primeiro_str.startswith("="):
-                continue
-            
-            texto_norm = _normalizar(primeiro_str)
-            
-            # Detecta linhas que contenham palavras-chave de rodapé
-            palavras_chave = (
-                "taxa", "wi-fi", "wifi", "pix", "servico", "gorjeta",
-                "funcionamento", "reserva", "pedido minimo", "senha", "cnpj",
-            )
-            if any(chave in texto_norm for chave in palavras_chave):
-                if len(primeiro_str) > 10 and primeiro_str not in textos:
-                    textos.append(primeiro_str)
+
+            texto_esquerda = texto_esquerda or texto_direita
+            texto_direita = texto_direita or texto_esquerda
+            rodape = (texto_esquerda, texto_direita)
+            if max(map(len, rodape)) > 10 and rodape not in textos:
+                textos.append(rodape)
         return textos
     finally:
         wb.close()
@@ -262,15 +272,15 @@ def gerar_cardapio(
     rodapes = _rodapes_do_modelo(modelo_cardapio)
     if rodapes:
         linha_atual += 1
-        for texto_rodape in rodapes:
+        for texto_esquerda, texto_direita in rodapes:
             ws.merge_cells(start_row=linha_atual, start_column=1, end_row=linha_atual, end_column=4)
-            celula = ws.cell(linha_atual, 1, texto_rodape)
+            celula = ws.cell(linha_atual, 1, texto_esquerda)
             celula.alignment = Alignment(horizontal="center")
             celula.font = Font(bold=True)
             celula.fill = PatternFill("solid", fgColor=cinza)
             
             ws.merge_cells(start_row=linha_atual, start_column=6, end_row=linha_atual, end_column=9)
-            celula_dir = ws.cell(linha_atual, 6, texto_rodape)
+            celula_dir = ws.cell(linha_atual, 6, texto_direita)
             celula_dir.alignment = Alignment(horizontal="center")
             celula_dir.font = Font(bold=True)
             celula_dir.fill = PatternFill("solid", fgColor=cinza)

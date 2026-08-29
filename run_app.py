@@ -38,11 +38,22 @@ def check_for_updates():
     print("Verificando se ha atualizacoes do sistema na internet...")
     for filename, url in FILES_TO_UPDATE.items():
         try:
+            # Evita receber uma versão antiga do cache do GitHub/proxy.
+            separador = "&" if "?" in url else "?"
+            url_sem_cache = f"{url}{separador}t={int(time.time())}"
+
             # Baixa com timeout maior (10 segundos) e sem verificar SSL (evita erros em proxy/exe)
-            response = requests.get(url, timeout=10, verify=False)
+            response = requests.get(
+                url_sem_cache,
+                timeout=10,
+                verify=False,
+                headers={"Cache-Control": "no-cache"},
+            )
             
             # Se a resposta for 200 OK e o arquivo não for uma página de erro
             if response.status_code == 200 and "404: Not Found" not in response.text:
+                if filename.endswith(".py"):
+                    compile(response.content, filename, "exec")
                 with open(filename, 'wb') as f:
                     f.write(response.content)
                 print(f"[+] '{filename}' atualizado com sucesso do GitHub.")
