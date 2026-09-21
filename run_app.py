@@ -35,6 +35,9 @@ FILES_TO_UPDATE = {
 }
 
 def check_for_updates():
+    if not getattr(sys, 'frozen', False):
+        print("Modo desenvolvimento/local detectado: preservando arquivos locais.")
+        return
     print("Verificando se ha atualizacoes do sistema na internet...")
     for filename, url in FILES_TO_UPDATE.items():
         try:

@@ -16,7 +16,23 @@ st.write("Faça o upload da planilha de produtos para gerar o cardápio atualiza
 arquivo_produtos = st.file_uploader("Planilha de Produtos (Obrigatório, formato .xlsx)", type=["xlsx"])
 arquivo_modelo = st.file_uploader("Cardápio Anterior / Modelo (Opcional, formato .xlsx)", type=["xlsx"])
 
-mostrar_pausados = st.checkbox("Mostrar produtos pausados", value=False)
+st.markdown("### Configurações de Impressão")
+formato_impressao = st.radio(
+    "Formato de Impressão na Folha A4:",
+    options=[
+        "2 Vias por Folha A4 (Paisagem - Meia folha para corte)",
+        "Folha Inteira A4 (1 Via - Retrato)"
+    ],
+    index=0,
+    help="• 2 Vias (Paisagem): Imprime 2 cardápios idênticos lado a lado com linha tracejada de corte ao meio (ideal para mesas).\n• 1 Via (Retrato): Cardápio único com letras grandes preenchendo toda a folha A4."
+)
+
+col_opcoes1, col_opcoes2 = st.columns(2)
+with col_opcoes1:
+    itens_em_negrito = st.checkbox("Destacar itens e preços em negrito", value=True)
+with col_opcoes2:
+    mostrar_pausados = st.checkbox("Mostrar produtos pausados", value=False)
+
 categorias_excluidas_str = st.text_input("Categorias excluídas (separadas por vírgula)", value="")
 
 # Utilizamos o session_state do Streamlit para armazenar a planilha gerada na memória.
@@ -46,13 +62,16 @@ if st.button("Gerar Cardápio", type="primary"):
                     categorias_excluidas = [cat.strip() for cat in categorias_excluidas_str.split(",")]
                 
                 caminho_destino = "Cardapio_Gerado.xlsx"
+                layout_escolhido = "paisagem" if "2 Vias" in formato_impressao else "retrato"
                 
                 arquivo_gerado = gerar_cardapio(
                     fonte_produtos=caminho_produtos,
                     destino=caminho_destino,
                     modelo_cardapio=caminho_modelo,
                     ocultar_pausados=not mostrar_pausados,
-                    categorias_excluidas=categorias_excluidas
+                    categorias_excluidas=categorias_excluidas,
+                    layout=layout_escolhido,
+                    itens_em_negrito=itens_em_negrito
                 )
                 
                 with open(arquivo_gerado, "rb") as f:

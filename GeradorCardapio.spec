@@ -4,7 +4,7 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = []
 binaries = []
-hiddenimports = ['win32com']
+hiddenimports = []
 datas += collect_data_files('openpyxl')
 datas += collect_data_files('requests')
 tmp_ret = collect_all('streamlit')
