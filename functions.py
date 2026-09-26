@@ -397,7 +397,7 @@ def gerar_cardapio(
 
             c_preco = ws.cell(linha_atual, 4, produto["preco"])
             c_preco.alignment = Alignment(horizontal="right", vertical="center")
-            c_preco.number_format = 'R$ #,##0.00'
+            c_preco.number_format = '#,##0.00'
             c_preco.font = f_preco
             c_preco.border = borda_fina
 
@@ -419,7 +419,7 @@ def gerar_cardapio(
 
                 c_preco_d = ws.cell(linha_atual, 9, produto["preco"])
                 c_preco_d.alignment = Alignment(horizontal="right", vertical="center")
-                c_preco_d.number_format = 'R$ #,##0.00'
+                c_preco_d.number_format = '#,##0.00'
                 c_preco_d.font = f_preco
                 c_preco_d.border = borda_fina
 
