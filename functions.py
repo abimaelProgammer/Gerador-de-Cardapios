@@ -34,7 +34,10 @@ RODAPES_PADRAO = [
         "Rede WI-FI: Clientes Le Clair    Senha: @Clientes2026",
         "Rede WI-FI: Clientes Le Clair    Senha: @Clientes2026",
     ),
-    ("PIX (CNPJ) 64.111.665/0001-55", "PIX (CPF) 428.255.047-34"),
+    (
+        "PIX (CPF) 428.255.047-34",
+        "PIX (CPF) 428.255.047-34",
+    ),
 ]
 
 
@@ -134,6 +137,11 @@ def _rodapes_do_modelo(
 
             texto_esquerda = texto_esquerda or texto_direita
             texto_direita = texto_direita or texto_esquerda
+            if "pix" in _normalizar(texto_esquerda) or "pix" in _normalizar(texto_direita):
+                if "cpf" in _normalizar(texto_direita) and "cnpj" in _normalizar(texto_esquerda):
+                    texto_esquerda = texto_direita
+                elif "cpf" in _normalizar(texto_esquerda) and "cnpj" in _normalizar(texto_direita):
+                    texto_direita = texto_esquerda
             rodape = (texto_esquerda, texto_direita)
             if max(map(len, rodape)) > 10 and rodape not in textos:
                 textos.append(rodape)
@@ -159,7 +167,7 @@ def _estilizar_faixa(ws, min_col: int, max_col: int, row: int, *, fill=None, fon
 def gerar_cardapio(
     fonte_produtos: str | Path,
     destino: str | Path = "Cardapio.xlsx",
-    modelo_cardapio: str | Path | None = "cardapio 2026-07-28.xlsx",
+    modelo_cardapio: str | Path | None = None,
     *,
     aba_produtos: str | None = None,
     ocultar_pausados: bool = True,
@@ -546,7 +554,7 @@ def gerar_cardapio(
 def _argumentos() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Gera Cardapio.xlsx a partir de um Excel de produtos.")
     parser.add_argument("--produtos", default="Produtos (58).xlsx", help="Excel que será a fonte dos produtos")
-    parser.add_argument("--modelo", default="cardapio 2026-07-28.xlsx", help="Cardápio anterior usado como referência")
+    parser.add_argument("--modelo", default=None, help="Cardápio anterior usado como referência (opcional)")
     parser.add_argument("--saida", default="Cardapio.xlsx", help="Nome/caminho do novo Excel")
     parser.add_argument("--mostrar-pausados", action="store_true", help="Não oculta as linhas de produtos pausados")
     parser.add_argument("--layout", choices=["paisagem", "retrato"], default="paisagem", help="Formato de impressão A4")

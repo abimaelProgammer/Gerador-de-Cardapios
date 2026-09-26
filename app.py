@@ -1,6 +1,10 @@
 import streamlit as st
 import os
+import importlib
 from pathlib import Path
+
+import functions
+importlib.reload(functions)
 from functions import gerar_cardapio
 
 try:
