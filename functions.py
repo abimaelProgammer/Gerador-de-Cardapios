@@ -18,6 +18,10 @@ from typing import Any, Iterable
 from openpyxl import Workbook, load_workbook
 from openpyxl.drawing.image import Image
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.units import mm
+from reportlab.pdfgen import canvas
 
 
 COLUNAS_OBRIGATORIAS = {
@@ -561,6 +565,177 @@ def _argumentos() -> argparse.Namespace:
     parser.add_argument("--sem-negrito", action="store_true", help="Não destacar itens em negrito")
     return parser.parse_args()
 
+def gerar_cardapio_pdf(
+    fonte_produtos: str | Path,
+    destino: str | Path = "Cardapio.pdf",
+    modelo_cardapio: str | Path | None = None,
+    *,
+    aba_produtos: str | None = None,
+    ocultar_pausados: bool = True,
+    categorias_excluidas: Iterable[str] = (),
+    layout: str = "paisagem",
+    itens_em_negrito: bool = True,
+) -> Path:
+    """Gera o Cardápio em PDF vetorial A4 de alta precisão via ReportLab."""
+    is_paisagem = (layout.strip().lower() == "paisagem")
+    pagesize = landscape(A4) if is_paisagem else A4
+    page_w, page_h = pagesize
+
+    produtos = ler_produtos(fonte_produtos, aba_produtos)
+    excluidas = {_normalizar(c) for c in categorias_excluidas}
+    produtos = [p for p in produtos if _normalizar(p["categoria"]) not in excluidas]
+    if ocultar_pausados:
+        produtos = [p for p in produtos if _normalizar(p["status"]) == "ativo"]
+
+    grupos: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
+    for p in produtos:
+        grupos.setdefault(str(p["categoria"]), []).append(p)
+
+    rodapes = _rodapes_do_modelo(modelo_cardapio)
+
+    caminho_destino = Path(destino)
+    caminho_destino.parent.mkdir(parents=True, exist_ok=True)
+    c = canvas.Canvas(str(caminho_destino), pagesize=pagesize)
+
+    # Cores Oficiais
+    c_azul = colors.HexColor("#1F4E78")
+    c_azul_claro = colors.HexColor("#D9EAF7")
+    c_bege = colors.HexColor("#EBE2D1")
+    c_cinza = colors.HexColor("#D9E1F2")
+    c_borda = colors.HexColor("#808080")
+    c_verde = colors.HexColor("#1B291E")
+
+    # Altura dinâmica das linhas para caber sempre em 1 página
+    total_linhas = 2 + len(grupos) + len(produtos) + len(rodapes)
+    margem_v = 6 * mm
+    h_util = page_h - 2 * margem_v
+    row_h = min(17.5, h_util / total_linhas)
+
+    font_scale = row_h / 17.0
+    f_titulo = max(9.0, 14.0 * font_scale)
+    f_cab = max(7.0, 10.5 * font_scale)
+    f_cat = max(7.0, 10.0 * font_scale)
+    f_prod = max(6.5, 9.5 * font_scale)
+    f_rodape = max(6.5, 9.0 * font_scale)
+
+    def desenhar_via(x_inicio: float, via_w: float, indice_via: int):
+        w_cod = 14 * mm if is_paisagem else 18 * mm
+        w_preco = 18 * mm if is_paisagem else 24 * mm
+        w_item = via_w - w_cod - w_preco
+
+        y = page_h - margem_v - row_h
+
+        # 1. TÍTULO
+        c.setFillColor(c_bege)
+        c.rect(x_inicio, y, via_w, row_h, fill=1, stroke=1)
+        c.setFillColor(c_verde)
+        c.setFont("Helvetica-Bold", f_titulo)
+        c.drawCentredString(x_inicio + via_w / 2, y + (row_h - f_titulo) / 2 + 1, f"CARDÁPIO {date.today():%d/%m/%Y}")
+
+        # Logo no título
+        caminho_logo = Path(fonte_produtos).parent / "logo.png"
+        if not caminho_logo.exists():
+            caminho_logo = Path("logo.png")
+        if not caminho_logo.exists():
+            caminho_logo = Path("logo2.jpg")
+        if caminho_logo.exists():
+            try:
+                logo_h = row_h - 2
+                c.drawImage(str(caminho_logo), x_inicio + 2 * mm, y + 1, width=logo_h, height=logo_h, preserveAspectRatio=True, mask="auto")
+            except Exception:
+                pass
+
+        y -= row_h
+
+        # 2. CABEÇALHOS
+        c.setFillColor(c_azul)
+        c.rect(x_inicio, y, via_w, row_h, fill=1, stroke=1)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", f_cab)
+        c.drawCentredString(x_inicio + w_cod / 2, y + (row_h - f_cab) / 2 + 1, "CÓD")
+        c.drawCentredString(x_inicio + w_cod + w_item / 2, y + (row_h - f_cab) / 2 + 1, "ITENS")
+        c.drawCentredString(x_inicio + w_cod + w_item + w_preco / 2, y + (row_h - f_cab) / 2 + 1, "R$")
+
+        c.setStrokeColor(colors.white)
+        c.setLineWidth(0.5)
+        c.line(x_inicio + w_cod, y, x_inicio + w_cod, y + row_h)
+        c.line(x_inicio + w_cod + w_item, y, x_inicio + w_cod + w_item, y + row_h)
+
+        y -= row_h
+
+        # 3. CATEGORIAS E PRODUTOS
+        for cat, itens in grupos.items():
+            c.setStrokeColor(c_borda)
+            c.setFillColor(c_azul_claro)
+            c.rect(x_inicio, y, via_w, row_h, fill=1, stroke=1)
+            c.setFillColor(c_azul)
+            c.setFont("Helvetica-Bold", f_cat)
+            c.drawCentredString(x_inicio + via_w / 2, y + (row_h - f_cat) / 2 + 1, cat.upper())
+            y -= row_h
+
+            for p in itens:
+                c.setStrokeColor(c_borda)
+                c.setLineWidth(0.3)
+                c.rect(x_inicio, y, via_w, row_h, fill=0, stroke=1)
+                c.line(x_inicio + w_cod, y, x_inicio + w_cod, y + row_h)
+                c.line(x_inicio + w_cod + w_item, y, x_inicio + w_cod + w_item, y + row_h)
+
+                c.setFillColor(colors.black)
+                c.setFont("Helvetica", f_prod)
+                c.drawCentredString(x_inicio + w_cod / 2, y + (row_h - f_prod) / 2 + 1, str(p["codigo"]))
+
+                c.setFont("Helvetica-Bold" if itens_em_negrito else "Helvetica", f_prod)
+                c.drawString(x_inicio + w_cod + 2 * mm, y + (row_h - f_prod) / 2 + 1, str(p["nome"]))
+
+                c.setFont("Helvetica-Bold", f_prod)
+                try:
+                    preco_val = float(str(p["preco"]).replace(",", "."))
+                    preco_str = f"{preco_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                except Exception:
+                    preco_str = str(p["preco"])
+                c.drawRightString(x_inicio + via_w - 2 * mm, y + (row_h - f_prod) / 2 + 1, preco_str)
+
+                y -= row_h
+
+        # 4. RODAPÉS
+        for r_item in rodapes:
+            texto_rodape = r_item[indice_via] if isinstance(r_item, (tuple, list)) else str(r_item)
+            c.setStrokeColor(c_borda)
+            c.setFillColor(c_cinza)
+            c.rect(x_inicio, y, via_w, row_h, fill=1, stroke=1)
+            c.setFillColor(colors.black)
+            c.setFont("Helvetica-Bold", f_rodape)
+            c.drawCentredString(x_inicio + via_w / 2, y + (row_h - f_rodape) / 2 + 1, texto_rodape)
+            y -= row_h
+
+    if is_paisagem:
+        margem_h = 8 * mm
+        meio_folha = page_w / 2
+        espaco_corte = 12 * mm
+        via_w = meio_folha - margem_h - (espaco_corte / 2)
+
+        desenhar_via(margem_h, via_w, indice_via=0)
+
+        # Linha de Corte Central com Tesoura ✂
+        c.setStrokeColor(colors.HexColor("#A0A0A0"))
+        c.setLineWidth(0.8)
+        c.setDash([3, 3])
+        c.line(meio_folha, margem_v, meio_folha, page_h - margem_v)
+        c.setDash([])
+
+        c.setFillColor(colors.HexColor("#666666"))
+        c.setFont("Helvetica", 10)
+        c.drawCentredString(meio_folha, page_h - margem_v - 8, "✂")
+        c.drawCentredString(meio_folha, margem_v + 4, "✂")
+
+        desenhar_via(meio_folha + (espaco_corte / 2), via_w, indice_via=1)
+    else:
+        via_w = page_w - 24 * mm
+        desenhar_via(12 * mm, via_w, indice_via=0)
+
+    c.showPage()
+    c.save()
+    return caminho_destino.resolve()
 
 if __name__ == "__main__":
     args = _argumentos()

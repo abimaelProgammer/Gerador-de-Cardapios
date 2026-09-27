@@ -5,12 +5,7 @@ from pathlib import Path
 
 import functions
 importlib.reload(functions)
-from functions import gerar_cardapio
-
-try:
-    import win32com.client
-except ImportError:
-    win32com = None
+from functions import gerar_cardapio, gerar_cardapio_pdf
 
 st.set_page_config(page_title="Gerador de Cardápio", page_icon="📋")
 
@@ -43,6 +38,8 @@ categorias_excluidas_str = st.text_input("Categorias excluídas (separadas por v
 # Isso é necessário porque botões de download recarregam a página.
 if "planilha_gerada" not in st.session_state:
     st.session_state.planilha_gerada = None
+if "pdf_gerado" not in st.session_state:
+    st.session_state.pdf_gerado = None
 
 if st.button("Gerar Cardápio", type="primary"):
     if arquivo_produtos is None:
@@ -77,15 +74,27 @@ if st.button("Gerar Cardápio", type="primary"):
                     layout=layout_escolhido,
                     itens_em_negrito=itens_em_negrito
                 )
-                
+
+                arquivo_pdf = gerar_cardapio_pdf(
+                    fonte_produtos=caminho_produtos,
+                    destino="Cardapio_Gerado.pdf",
+                    modelo_cardapio=caminho_modelo,
+                    ocultar_pausados=not mostrar_pausados,
+                    categorias_excluidas=categorias_excluidas,
+                    layout=layout_escolhido,
+                    itens_em_negrito=itens_em_negrito
+                )
+
                 with open(arquivo_gerado, "rb") as f:
                     st.session_state.planilha_gerada = f.read()
+
+                with open(arquivo_pdf, "rb") as f:
+                    st.session_state.pdf_gerado = f.read()
                 
                 st.success("Cardápio gerado com sucesso! Clique no botão abaixo para baixar.")
                 
             except Exception as e:
                 st.error(f"Ocorreu um erro ao gerar o cardápio: {str(e)}")
-            
             finally:
                 # Limpeza de arquivos temporários
                 if os.path.exists("temp_produtos_upload.xlsx"):
@@ -94,6 +103,8 @@ if st.button("Gerar Cardápio", type="primary"):
                     os.remove(caminho_modelo)
                 if os.path.exists("Cardapio_Gerado.xlsx"):
                     os.remove("Cardapio_Gerado.xlsx")
+                if os.path.exists("Cardapio_Gerado.pdf"):
+                    os.remove("Cardapio_Gerado.pdf")
 
 if st.session_state.planilha_gerada:
     st.markdown("---")
@@ -101,7 +112,7 @@ if st.session_state.planilha_gerada:
     
     with col1:
         st.download_button(
-            label="📥 Baixar Cardápio",
+            label="📥 Baixar Cardápio (Excel)",
             data=st.session_state.planilha_gerada,
             file_name="Cardapio.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -109,39 +120,11 @@ if st.session_state.planilha_gerada:
         )
         
     with col2:
-        pode_gerar_pdf = win32com is not None
-        if st.button(
-            "🖨️ Abrir PDF para Imprimir",
-            type="secondary",
-            use_container_width=True,
-            disabled=not pode_gerar_pdf,
-        ):
-            with st.spinner("Gerando PDF do Cardápio..."):
-                try:
-                    temp_print_path = os.path.abspath("temp_imprimir.xlsx")
-                    temp_pdf_path = os.path.abspath("temp_imprimir.pdf")
-                    
-                    with open(temp_print_path, "wb") as f:
-                        f.write(st.session_state.planilha_gerada)
-                    
-                    if os.path.exists(temp_pdf_path):
-                        os.remove(temp_pdf_path)
-                        
-                    excel = win32com.client.Dispatch("Excel.Application")
-                    excel.Visible = False
-                    wb = excel.Workbooks.Open(temp_print_path)
-                    # 0 é o código para ExportAsFixedFormat tipo PDF
-                    wb.ActiveSheet.ExportAsFixedFormat(0, temp_pdf_path)
-                    wb.Close(False)
-                    excel.Quit()
-                    
-                    os.startfile(temp_pdf_path)
-                    st.success("PDF aberto! Escolha a sua impressora no leitor de PDF.")
-                except Exception as e:
-                    st.error(f"Não foi possível gerar o PDF. Verifique se o Excel está instalado: {e}")
-
-        if not pode_gerar_pdf:
-            st.caption(
-                "Para gerar o PDF, instale o suporte do Windows com: "
-                "`python -m pip install pywin32`. O download em Excel continua disponível."
-            )
+        st.download_button(
+            label="🖨️ Baixar Cardápio em PDF (Pronto para Imprimir)",
+            data=st.session_state.pdf_gerado,
+            file_name="Cardapio.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True
+        )
