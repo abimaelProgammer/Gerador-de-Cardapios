@@ -149,18 +149,90 @@ with aba_etiquetas:
     st.markdown("### Emissão de Etiquetas de Produtos (100 x 65 mm)")
     st.caption("Layout oficial Lé Clair com medidas exatas para impressora térmica Elgin L42 Pro Full.")
 
+    # 1. Carrega a lista de produtos (da planilha subida no cardápio ou da planilha local)
+    from functions import ler_produtos
+
+    produtos_cadastrados = []
+    if arquivo_produtos is not None:
+        try:
+            produtos_cadastrados = ler_produtos(arquivo_produtos)
+        except Exception:
+            pass
+    elif Path("Produtos (58).xlsx").exists():
+        try:
+            produtos_cadastrados = ler_produtos("Produtos (58).xlsx")
+        except Exception:
+            pass
+
+    # Apenas produtos ativos por padrão
+    produtos_ativos = [p for p in produtos_cadastrados if str(p.get("status", "")).strip().lower() == "ativo"]
+
+    # 2. Escolha entre selecionar da lista ou digitar manualmente
+    if produtos_ativos:
+        modo_origem = st.radio(
+            "Origem do Produto:",
+            options=["📋 Selecionar do Cardápio", "✍️ Digitar Manualmente"],
+            horizontal=True,
+            key="modo_origem_etiqueta"
+        )
+    else:
+        modo_origem = "✍️ Digitar Manualmente"
+        st.info("💡 Dica: Faça o upload da planilha na aba 'Gerador de Cardápio' para selecionar produtos automaticamente.")
+
+    nome_sugerido = "Camarão empanado"
+    modo_servir_sugerido = "Aqueça numa panela e sirva."
+    conservacao_sugerida = 0  # 0: Refrigerado
+
+    if modo_origem == "📋 Selecionar do Cardápio":
+        col_filtro1, col_filtro2 = st.columns([1, 2])
+        
+        # Filtro opcional de categoria
+        categorias_lista = ["Todas"] + sorted(list({str(p["categoria"]) for p in produtos_ativos}))
+        with col_filtro1:
+            cat_escolhida = st.selectbox("Filtrar por Categoria:", options=categorias_lista, key="filtro_cat_etiqueta")
+
+        itens_filtrados = [
+            p for p in produtos_ativos 
+            if cat_escolhida == "Todas" or str(p["categoria"]) == cat_escolhida
+        ]
+
+        with col_filtro2:
+            produto_selecionado = st.selectbox(
+                "Pesquise ou selecione o Produto:",
+                options=itens_filtrados,
+                format_func=lambda p: f"{p['nome']} (Cód: {p['codigo']})",
+                key="select_produto_etiqueta"
+            )
+
+        if produto_selecionado:
+            nome_sugerido = str(produto_selecionado["nome"])
+            
+            # Sugestão inteligente de conservação dependendo da categoria
+            cat_lower = str(produto_selecionado.get("categoria", "")).lower()
+            if "bebida" in cat_lower or "vinho" in cat_lower or "cerveja" in cat_lower:
+                modo_servir_sugerido = "Servir gelado."
+                conservacao_sugerida = 2  # Local seco e fresco
+            elif "destilado" in cat_lower or "aperitivo" in cat_lower:
+                modo_servir_sugerido = "Servir em temperatura ambiente ou com gelo."
+                conservacao_sugerida = 2
+            else:
+                modo_servir_sugerido = "Aqueça numa panela e sirva."
+                conservacao_sugerida = 0  # Refrigerado
+
+    st.markdown("#### Detalhes da Etiqueta")
+
     with st.form("form_etiqueta"):
         col_et1, col_et2 = st.columns(2)
         with col_et1:
-            et_produto = st.text_input("Nome do Produto", value="Camarão empanado")
-            et_modo_servir = st.text_input("Modo de servir", value="Aqueça numa panela e sirva.")
+            et_produto = st.text_input("Nome do Produto na Etiqueta", value=nome_sugerido)
+            et_modo_servir = st.text_input("Modo de servir", value=modo_servir_sugerido)
             et_saudacao = st.text_input("Saudação", value="Bom apetite!")
 
         with col_et2:
             et_conservacao = st.selectbox(
                 "Instrução de Armazenamento",
                 options=["MANTER REFRIGERADO", "MANTER CONGELADO", "CONSERVAR EM LOCAL SECO E FRESCO"],
-                index=0,
+                index=conservacao_sugerida,
             )
             et_data_fab = st.date_input("Data de Fabricação", value=date.today(), format="DD/MM/YYYY")
             et_validade = st.text_input("Validade", value="3 dias refrigerado.")
@@ -180,11 +252,11 @@ with aba_etiquetas:
             quantidade=int(et_quantidade),
         )
 
-        st.success(f"PDF com {et_quantidade} etiqueta(s) gerado com sucesso!")
+        st.success(f"PDF com {et_quantidade} etiqueta(s) de '{et_produto}' gerado com sucesso!")
         st.download_button(
             label="📥 Baixar PDF das Etiquetas para a Elgin",
             data=pdf_etiquetas_buffer.getvalue(),
-            file_name=f"Etiquetas_{et_produto.replace(' ', '_')}.pdf",
+            file_name=f"Etiqueta_{et_produto.replace(' ', '_')}.pdf",
             mime="application/pdf",
             use_container_width=True
         )
