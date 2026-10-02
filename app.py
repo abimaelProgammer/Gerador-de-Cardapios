@@ -10,7 +10,12 @@ from functions import gerar_cardapio, gerar_cardapio_pdf
 
 import etiquetas
 importlib.reload(etiquetas)
-from etiquetas import gerar_pdf_etiquetas
+from etiquetas import (
+    gerar_pdf_etiquetas, 
+    obter_catalogo_etiquetas, 
+    salvar_template_etiqueta,
+    excluir_produto_catalogo
+)
 
 st.set_page_config(page_title="Lé Clair - Sistema de Impressão", page_icon="📋", layout="wide")
 
@@ -155,6 +160,7 @@ with aba_etiquetas:
     produtos_cadastrados = []
     if arquivo_produtos is not None:
         try:
+            arquivo_produtos.seek(0)
             produtos_cadastrados = ler_produtos(arquivo_produtos)
         except Exception:
             pass
@@ -167,96 +173,110 @@ with aba_etiquetas:
     # Apenas produtos ativos por padrão
     produtos_ativos = [p for p in produtos_cadastrados if str(p.get("status", "")).strip().lower() == "ativo"]
 
-    # 2. Escolha entre selecionar da lista ou digitar manualmente
-    if produtos_ativos:
-        modo_origem = st.radio(
-            "Origem do Produto:",
-            options=["📋 Selecionar do Cardápio", "✍️ Digitar Manualmente"],
-            horizontal=True,
-            key="modo_origem_etiqueta"
+    # 2. Catálogo Unificado
+    catalogo = obter_catalogo_etiquetas(produtos_ativos)
+    
+    opcoes_selecao = ["➕ Criar Novo Produto / Personalizado"] + [p["produto"] for p in catalogo]
+    
+    col_sel, col_btn_del = st.columns([5, 1])
+    with col_sel:
+        produto_escolhido = st.selectbox(
+            "Selecione um Produto para Imprimir ou Editar:",
+            options=opcoes_selecao,
+            key="select_produto_unificado"
         )
-    else:
-        modo_origem = "✍️ Digitar Manualmente"
-        st.info("💡 Dica: Faça o upload da planilha na aba 'Gerador de Cardápio' para selecionar produtos automaticamente.")
+    
+    with col_btn_del:
+        st.write("") # espaçamento vertical para alinhar com o selectbox
+        st.write("")
+        if produto_escolhido != "➕ Criar Novo Produto / Personalizado":
+            if st.button("🗑️ Remover", help=f"Ocultar/remover '{produto_escolhido}' do catálogo de etiquetas", use_container_width=True):
+                excluir_produto_catalogo(produto_escolhido)
+                st.toast(f"'{produto_escolhido}' removido da lista!")
+                st.rerun()
 
-    nome_sugerido = "Camarão empanado"
-    modo_servir_sugerido = "Aqueça numa panela e sirva."
-    conservacao_sugerida = 0  # 0: Refrigerado
+    # Identifica os valores pré-carregados
+    item_atual = None
+    if produto_escolhido != "➕ Criar Novo Produto / Personalizado":
+        item_atual = next((item for item in catalogo if item["produto"] == produto_escolhido), None)
 
-    if modo_origem == "📋 Selecionar do Cardápio":
-        col_filtro1, col_filtro2 = st.columns([1, 2])
-        
-        # Filtro opcional de categoria
-        categorias_lista = ["Todas"] + sorted(list({str(p["categoria"]) for p in produtos_ativos}))
-        with col_filtro1:
-            cat_escolhida = st.selectbox("Filtrar por Categoria:", options=categorias_lista, key="filtro_cat_etiqueta")
+    # Valores sugeridos padrão ou carregados do catálogo
+    nome_sugerido = item_atual["produto"] if item_atual else ""
+    modo_servir_sugerido = item_atual.get("modo_servir", "Aqueça numa panela e sirva.") if item_atual else "Aqueça numa panela e sirva."
+    saudacao_sugerida = item_atual.get("saudacao", "Bom apetite!") if item_atual else "Bom apetite!"
+    validade_sugerida = item_atual.get("validade", "3 dias refrigerado.") if item_atual else "3 dias refrigerado."
+    
+    conservacao_map = {
+        "MANTER REFRIGERADO": 0,
+        "MANTER CONGELADO": 1,
+        "CONSERVAR EM LOCAL SECO E FRESCO": 2
+    }
+    cons_texto = item_atual.get("conservacao", "MANTER REFRIGERADO") if item_atual else "MANTER REFRIGERADO"
+    conservacao_index = conservacao_map.get(cons_texto, 0)
 
-        itens_filtrados = [
-            p for p in produtos_ativos 
-            if cat_escolhida == "Todas" or str(p["categoria"]) == cat_escolhida
-        ]
+    # Informações visuais do Formulário
+    with st.container(border=True):
+        st.markdown("##### ✏️ Configuração da Etiqueta")
 
-        with col_filtro2:
-            produto_selecionado = st.selectbox(
-                "Pesquise ou selecione o Produto:",
-                options=itens_filtrados,
-                format_func=lambda p: f"{p['nome']} (Cód: {p['codigo']})",
-                key="select_produto_etiqueta"
-            )
+        with st.form("form_etiqueta"):
+            col_et1, col_et2 = st.columns(2)
+            with col_et1:
+                et_produto = st.text_input("Nome do Produto na Etiqueta", value=nome_sugerido, placeholder="Ex: Bolo de Cenoura com Chocolate")
+                et_modo_servir = st.text_input("Modo de servir / Consumo", value=modo_servir_sugerido)
+                et_saudacao = st.text_input("Saudação", value=saudacao_sugerida)
 
-        if produto_selecionado:
-            nome_sugerido = str(produto_selecionado["nome"])
-            
-            # Sugestão inteligente de conservação dependendo da categoria
-            cat_lower = str(produto_selecionado.get("categoria", "")).lower()
-            if "bebida" in cat_lower or "vinho" in cat_lower or "cerveja" in cat_lower:
-                modo_servir_sugerido = "Servir gelado."
-                conservacao_sugerida = 2  # Local seco e fresco
-            elif "destilado" in cat_lower or "aperitivo" in cat_lower:
-                modo_servir_sugerido = "Servir em temperatura ambiente ou com gelo."
-                conservacao_sugerida = 2
-            else:
-                modo_servir_sugerido = "Aqueça numa panela e sirva."
-                conservacao_sugerida = 0  # Refrigerado
+            with col_et2:
+                et_conservacao = st.selectbox(
+                    "Instrução de Armazenamento",
+                    options=["MANTER REFRIGERADO", "MANTER CONGELADO", "CONSERVAR EM LOCAL SECO E FRESCO"],
+                    index=conservacao_index,
+                )
+                col_d1, col_d2 = st.columns(2)
+                with col_d1:
+                    et_data_fab = st.date_input("Fabricação", value=date.today(), format="DD/MM/YYYY")
+                with col_d2:
+                    et_validade = st.text_input("Validade", value=validade_sugerida)
 
-    st.markdown("#### Detalhes da Etiqueta")
+                et_quantidade = st.number_input("Cópias a imprimir", min_value=1, max_value=500, value=1)
 
-    with st.form("form_etiqueta"):
-        col_et1, col_et2 = st.columns(2)
-        with col_et1:
-            et_produto = st.text_input("Nome do Produto na Etiqueta", value=nome_sugerido)
-            et_modo_servir = st.text_input("Modo de servir", value=modo_servir_sugerido)
-            et_saudacao = st.text_input("Saudação", value="Bom apetite!")
-
-        with col_et2:
-            et_conservacao = st.selectbox(
-                "Instrução de Armazenamento",
-                options=["MANTER REFRIGERADO", "MANTER CONGELADO", "CONSERVAR EM LOCAL SECO E FRESCO"],
-                index=conservacao_sugerida,
-            )
-            et_data_fab = st.date_input("Data de Fabricação", value=date.today(), format="DD/MM/YYYY")
-            et_validade = st.text_input("Validade", value="3 dias refrigerado.")
-            et_quantidade = st.number_input("Quantidade de etiquetas (cópias)", min_value=1, max_value=500, value=1)
-
-        gerar_etiqueta_btn = st.form_submit_button("Gerar Etiquetas em PDF", type="primary")
+            st.divider()
+            col_check, col_btn = st.columns([2, 1])
+            with col_check:
+                salvar_no_catalogo = st.checkbox("💾 Salvar dados atualizados no catálogo", value=True)
+            with col_btn:
+                gerar_etiqueta_btn = st.form_submit_button("🖨️ Gerar PDF para Impressão", type="primary", use_container_width=True)
 
     if gerar_etiqueta_btn:
-        data_fab_formatada = et_data_fab.strftime("%d/%m/%Y")
-        pdf_etiquetas_buffer = gerar_pdf_etiquetas(
-            produto=et_produto,
-            modo_servir=et_modo_servir,
-            saudacao=et_saudacao,
-            conservacao=et_conservacao,
-            data_fabricacao=data_fab_formatada,
-            validade=et_validade,
-            quantidade=int(et_quantidade),
-        )
+        if not et_produto.strip():
+            st.warning("⚠️ Informe o nome do produto para gerar a etiqueta.")
+        else:
+            if salvar_no_catalogo:
+                salvar_template_etiqueta({
+                    "produto": et_produto.strip(),
+                    "modo_servir": et_modo_servir.strip(),
+                    "saudacao": et_saudacao.strip(),
+                    "conservacao": et_conservacao,
+                    "validade": et_validade.strip()
+                })
+                st.toast(f"✅ Configurações salvas para '{et_produto}'!")
 
-        st.success(f"PDF com {et_quantidade} etiqueta(s) de '{et_produto}' gerado com sucesso!")
-        st.download_button(
-            label="📥 Baixar PDF das Etiquetas para a Elgin",
-            data=pdf_etiquetas_buffer.getvalue(),
-            file_name=f"Etiqueta_{et_produto.replace(' ', '_')}.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
+            data_fab_formatada = et_data_fab.strftime("%d/%m/%Y")
+            pdf_etiquetas_buffer = gerar_pdf_etiquetas(
+                produto=et_produto,
+                modo_servir=et_modo_servir,
+                saudacao=et_saudacao,
+                conservacao=et_conservacao,
+                data_fabricacao=data_fab_formatada,
+                validade=et_validade,
+                quantidade=int(et_quantidade),
+            )
+
+            st.success("✅ Arquivo pronto para a Elgin L42!")
+            st.download_button(
+                label=f"📥 Baixar Etiqueta em PDF ({et_quantidade} cópias)",
+                data=pdf_etiquetas_buffer,
+                file_name=f"Etiqueta_{et_produto.replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                type="secondary",
+                use_container_width=True
+            )

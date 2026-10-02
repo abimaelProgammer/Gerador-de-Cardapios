@@ -1,11 +1,135 @@
 """Módulo de geração de etiquetas térmicas em PDF para Elgin L42 Pro Full (100x65mm)."""
 
-from io import BytesIO
+import json
 from pathlib import Path
+from io import BytesIO
 from PIL import Image as PILImage
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
+ARQUIVO_TEMPLATES_ETIQUETAS = Path("etiquetas_salvas.json")
+
+def carregar_dados_etiquetas() -> dict:
+    """Carrega o dicionário com templates e lista de itens ocultados/excluídos."""
+    padrao = {"templates": [], "ocultos": []}
+    if not ARQUIVO_TEMPLATES_ETIQUETAS.exists():
+        return padrao
+    try:
+        with open(ARQUIVO_TEMPLATES_ETIQUETAS, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+            # Compatibilidade caso o arquivo antes fosse apenas uma lista
+            if isinstance(dados, list):
+                return {"templates": dados, "ocultos": []}
+            return dados
+    except Exception:
+        return padrao
+
+def carregar_templates_etiquetas() -> list[dict]:
+    """Carrega a lista de templates (apenas a chave 'templates')."""
+    dados = carregar_dados_etiquetas()
+    return dados.get("templates", [])
+
+def salvar_dados_etiquetas(dados: dict) -> bool:
+    """Salva os dados de templates e ocultos no JSON."""
+    try:
+        with open(ARQUIVO_TEMPLATES_ETIQUETAS, "w", encoding="utf-8") as f:
+            json.dump(dados, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception:
+        return False
+
+def salvar_template_etiqueta(etiqueta_data: dict) -> bool:
+    """
+    Salva ou atualiza um produto no catálogo:
+    - Atualiza os templates dentro da estrutura {'templates': [...], 'ocultos': [...]}.
+    - Se o produto estava na lista de ocultos, remove ele de lá.
+    """
+    nome_alvo = etiqueta_data.get("produto", "").strip().lower()
+    if not nome_alvo:
+        return False
+    dados = carregar_dados_etiquetas()
+    templates = dados.get("templates", [])
+    # 1. Atualiza se já existir ou adiciona novo
+    atualizado = False
+    for i, item in enumerate(templates):
+        if isinstance(item, dict) and item.get("produto", "").strip().lower() == nome_alvo:
+            templates[i] = etiqueta_data
+            atualizado = True
+            break
+    if not atualizado:
+        templates.append(etiqueta_data)
+    dados["templates"] = templates
+    # 2. Se estava na lista de ocultos, desoculta!
+    dados["ocultos"] = [
+        o for o in dados.get("ocultos", []) 
+        if o.strip().lower() != nome_alvo
+    ]
+    return salvar_dados_etiquetas(dados)
+
+def excluir_produto_catalogo(nome_produto: str) -> bool:
+    """
+    Remove o produto dos templates E adiciona à lista de ocultos,
+    garantindo que não reapareça mesmo se estiver na planilha.
+    """
+    dados = carregar_dados_etiquetas()
+    nome_norm = nome_produto.strip().lower()
+
+    # Remove dos templates
+    dados["templates"] = [
+        t for t in dados.get("templates", []) 
+        if t.get("produto", "").strip().lower() != nome_norm
+    ]
+
+    # Adiciona aos ocultos (se já não estiver)
+    ocultos = [o.lower() for o in dados.get("ocultos", [])]
+    if nome_norm not in ocultos:
+        dados.setdefault("ocultos", []).append(nome_produto.strip())
+
+    return salvar_dados_etiquetas(dados)
+
+def obter_catalogo_etiquetas(produtos_cardapio: list[dict] = None) -> list[dict]:
+    """Retorna o catálogo unificado, ignorando itens que foram ocultados/excluídos."""
+    dados = carregar_dados_etiquetas()
+    salvos = dados.get("templates", [])
+    ocultos_set = {o.strip().lower() for o in dados.get("ocultos", [])}
+
+    # Só entram salvos que não estão na lista de ocultos
+    catalogo = [s for s in salvos if s.get("produto", "").strip().lower() not in ocultos_set]
+    mapa_existentes = {s["produto"].strip().lower() for s in catalogo}
+
+    if produtos_cardapio:
+        for p in produtos_cardapio:
+            nome = str(p.get("nome", "")).strip()
+            if not nome:
+                continue
+
+            nome_lower = nome.lower()
+            # Ignora se foi ocultado pelo usuário OU se já está no catálogo
+            if nome_lower in ocultos_set or nome_lower in mapa_existentes:
+                continue
+
+            cat_lower = str(p.get("categoria", "")).lower()
+            if any(beb in cat_lower for beb in ["bebida", "vinho", "cerveja"]):
+                modo_servir = "Servir gelado."
+                conservacao = "CONSERVAR EM LOCAL SECO E FRESCO"
+            elif any(dest in cat_lower for dest in ["destilado", "aperitivo"]):
+                modo_servir = "Servir em temperatura ambiente ou com gelo."
+                conservacao = "CONSERVAR EM LOCAL SECO E FRESCO"
+            else:
+                modo_servir = "Aqueça numa panela e sirva."
+                conservacao = "MANTER REFRIGERADO"
+
+            catalogo.append({
+                "produto": nome,
+                "modo_servir": modo_servir,
+                "saudacao": "Bom apetite!",
+                "conservacao": conservacao,
+                "validade": "3 dias refrigerado."
+            })
+            mapa_existentes.add(nome_lower)
+
+    catalogo.sort(key=lambda x: x.get("produto", "").lower())
+    return catalogo
 
 def _obter_logo_recortada() -> str | None:
     """Prepara a logo com fundo transparente recortado para máxima nitidez."""
@@ -29,7 +153,6 @@ def _obter_logo_recortada() -> str | None:
         return str(caminho_jpg)
 
     return None
-
 
 def desenhar_uma_etiqueta(
     c: canvas.Canvas,
@@ -111,7 +234,6 @@ def desenhar_uma_etiqueta(
     c.drawCentredString(50 * mm, 5.1 * mm, "Av. Barão de Studart , 1420, loja 08 - Aldeota - Fortaleza - CE")
     c.drawCentredString(50 * mm, 2.9 * mm, "Fone: (85) 99113-9073")
 
-
 def gerar_pdf_etiquetas(
     produto: str,
     modo_servir: str,
@@ -143,7 +265,6 @@ def gerar_pdf_etiquetas(
     c.save()
     buffer.seek(0)
     return buffer
-
 
 if __name__ == "__main__":
     # Teste rápido se executado diretamente

@@ -70,13 +70,15 @@ def _localizar_colunas(cabecalhos: Iterable[Any]) -> dict[str, int]:
     return resultado
 
 
-def ler_produtos(fonte_produtos: str | Path, aba: str | None = None) -> list[dict[str, Any]]:
-    """Lê produtos de qualquer .xlsx com os cabeçalhos esperados."""
-    caminho = Path(fonte_produtos)
-    if not caminho.exists():
-        raise FileNotFoundError(f"Fonte de produtos não encontrada: {caminho}")
-
-    wb = load_workbook(caminho, data_only=True, read_only=True)
+def ler_produtos(fonte_produtos: Any, aba: str | None = None) -> list[dict[str, Any]]:
+    """Lê produtos de qualquer .xlsx com os cabeçalhos esperados (aceita caminho ou arquivo em memória)."""
+    if isinstance(fonte_produtos, (str, Path)):
+        caminho = Path(fonte_produtos)
+        if not caminho.exists():
+            raise FileNotFoundError(f"Fonte de produtos não encontrada: {caminho}")
+        wb = load_workbook(caminho, data_only=True, read_only=True)
+    else:
+        wb = load_workbook(fonte_produtos, data_only=True, read_only=True)
     try:
         ws = wb[aba] if aba else wb[wb.sheetnames[0]]
         colunas = _localizar_colunas(next(ws.iter_rows(min_row=1, max_row=1, values_only=True)))
