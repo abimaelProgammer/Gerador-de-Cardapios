@@ -4,6 +4,7 @@ venv/
 env/
 ENV/
 .env
+.env.trello_auth
 
 # Python
 __pycache__/
