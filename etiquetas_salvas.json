@@ -1,0 +1,15 @@
+{
+  "templates": [
+    {
+      "produto": "Bolinho de Bacalhau (06 unidades)",
+      "modo_servir": "Aqueça numa panela e sirva.",
+      "saudacao": "Bom apetite!",
+      "conservacao": "MANTER REFRIGERADO",
+      "validade": "3 dias refrigerado."
+    }
+  ],
+  "ocultos": [
+    "Bolo de Teste",
+    "Bolo de cenoura e chocolate"
+  ]
+}
