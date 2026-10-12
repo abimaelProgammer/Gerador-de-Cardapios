@@ -26,11 +26,13 @@ os.chdir(base_dir)
 # =====================================================================
 URL_APP = "https://raw.githubusercontent.com/abimaelProgammer/Gerador-de-Cardapios/main/app.py"
 URL_FUNCTIONS = "https://raw.githubusercontent.com/abimaelProgammer/Gerador-de-Cardapios/main/functions.py"
+URL_ETIQUETAS = "https://raw.githubusercontent.com/abimaelProgammer/Gerador-de-Cardapios/main/etiquetas.py"
 URL_LOGO = "https://raw.githubusercontent.com/abimaelProgammer/Gerador-de-Cardapios/main/logo2.jpg"
 
 FILES_TO_UPDATE = {
     "app.py": URL_APP,
     "functions.py": URL_FUNCTIONS,
+    "etiquetas.py": URL_ETIQUETAS,
     "logo2.jpg": URL_LOGO
 }
 

@@ -15,7 +15,7 @@ echo.
 :: --onefile: Junta tudo em um unico arquivo .exe
 :: --collect-all: Forca o PyInstaller a empacotar pastas escondidas de certas bibliotecas
 :: --icon=NONE (opcional, pode adicionar um ícone depois)
-.venv\Scripts\python.exe -m PyInstaller --onefile --noconfirm --collect-all streamlit --collect-all altair --collect-data openpyxl --collect-data requests -n GeradorCardapio run_app.py
+.venv\Scripts\python.exe -m PyInstaller --onefile --noconfirm --collect-all streamlit --collect-all altair --collect-all reportlab --collect-all PIL --collect-data openpyxl --collect-data requests -n GeradorCardapio run_app.py
 
 echo.
 echo ============================================================
